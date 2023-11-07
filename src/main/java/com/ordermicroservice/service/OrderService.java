@@ -3,11 +3,13 @@ package com.ordermicroservice.service;
 
 import com.ordermicroservice.dto.InventroyResponse;
 import com.ordermicroservice.dto.OrderRequest;
+import com.ordermicroservice.event.OrderPlacedEvent;
 import com.ordermicroservice.exception.OrderException;
 import com.ordermicroservice.model.MyOrder;
 import com.ordermicroservice.model.OrderLineItem;
 import com.ordermicroservice.repository.OrderRepo;
 import lombok.RequiredArgsConstructor;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
@@ -22,6 +24,7 @@ public class OrderService {
 
     private final OrderRepo orderRepo;
     private  final WebClient.Builder webClientBuilder;
+    private final KafkaTemplate<String,OrderPlacedEvent> kafkaTemplate;
 
     public void placeOrder(OrderRequest orderRequest) throws OrderException {
         MyOrder myOrder = MyOrder.builder()
@@ -51,6 +54,7 @@ public class OrderService {
              boolean isAllProductsInStock = Arrays.stream(inventroyResponses).anyMatch(InventroyResponse::isExist);
              if (isAllProductsInStock){
                  orderRepo.save(myOrder);
+                 kafkaTemplate.send("notificationTopic",new OrderPlacedEvent(myOrder.getOrderNumber()));
              }
              else {
                  throw new OrderException("One of the products does not exist or have the enough amount in stock");
